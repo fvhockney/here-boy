@@ -69,7 +69,6 @@ impl Config {
     }
 
     pub fn load(config_path: PathBuf) -> LResult<Config> {
-        println!("{}", config_path.exists());
         if !config_path.exists() {
             Err(MockError::NoConfigFound(config_path.clone()))?
         }
