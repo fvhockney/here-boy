@@ -1,4 +1,4 @@
-# Api File Mocker
+# Here-Boy!
 
 Download data from API endpoints to individual files to use later. I use this for testing my api liberary integrations against actual data from the api in my test mocks.
 
@@ -45,10 +45,10 @@ Default json converstion of config enpoints: './api.json'
 
 ## Cli Reference
 ```bash
-api-file-mocker 0.1.0
+here-boy 0.1.0
 
 USAGE:
-    api-file-mocker [FLAGS] [OPTIONS]
+    here-boy [FLAGS] [OPTIONS]
 
 FLAGS:
         --convert-config
