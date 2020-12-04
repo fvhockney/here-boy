@@ -1,4 +1,5 @@
 use hyper::body::HttpBody as _;
+use hyper::http::uri::Scheme;
 use hyper::Client;
 use hyper_tls::HttpsConnector;
 use std::process::exit;
@@ -17,14 +18,26 @@ use config::{Config, Endpoint};
 
 pub type LResult<T> = Result<T, MockError>;
 
-async fn make_request(endpoint: Endpoint) -> LResult<()> {
+async fn http_request(uri: &hyper::Uri) -> hyper::client::ResponseFuture {
+    let client = Client::new();
+    client.get(uri.clone())
+}
+
+async fn https_request(uri: &hyper::Uri) -> hyper::client::ResponseFuture {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
+    client.get(uri.clone())
+}
+
+async fn make_request(endpoint: Endpoint) -> LResult<()> {
     let uri = endpoint.get_uri()?;
-    let mut resp = client
-        .get(uri.clone())
-        .await
-        .map_err(|_| MockError::UnableToGet)?;
+    let req = match uri.scheme() {
+        Some(x) if x == &Scheme::HTTPS => Ok(https_request(&uri).await),
+        Some(x) if x == &Scheme::HTTP => Ok(http_request(&uri).await),
+        Some(_) => Err(MockError::UnknownScheme(uri.to_string())),
+        None => Err(MockError::NoScheme(uri.to_string())),
+    };
+    let mut resp = req?.await.map_err(|_| MockError::UnableToGet)?;
     if resp.status().is_success() || resp.status().is_redirection() {
         let file_name = &endpoint.file;
         let mut file = File::create(file_name)

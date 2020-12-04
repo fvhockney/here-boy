@@ -12,6 +12,8 @@ pub enum MockError {
     NoConfigFound(PathBuf),
     CantCreatePaths(PathBuf),
     MalformedConfig(PathBuf),
+    NoScheme(String),
+    UnknownScheme(String),
 }
 
 impl fmt::Display for MockError {
@@ -34,6 +36,8 @@ impl fmt::Display for MockError {
                 write!(f, "can not create path for {}", path.display())
             }
             MockError::MalformedConfig(path) => write!(f, "malformed config at {}", path.display()),
+            MockError::NoScheme(uri) => write!(f, "no scheme provided for {}", uri),
+            MockError::UnknownScheme(uri) => write!(f, "{} has an unkown scheme", uri),
         }
     }
 }
@@ -58,6 +62,8 @@ impl fmt::Debug for MockError {
                 write!(f, "can not create path for {}", path.display())
             }
             MockError::MalformedConfig(path) => write!(f, "malformed config at {}", path.display()),
+            MockError::NoScheme(uri) => write!(f, "no scheme provided for {}", uri),
+            MockError::UnknownScheme(uri) => write!(f, "{} has an unkown scheme", uri),
         }
     }
 }
