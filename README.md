@@ -2,7 +2,7 @@
 
 Download data from API endpoints to individual files to use later. I use this for testing my api liberary integrations against actual data from the api in my test mocks.
 
-Written with [tokio](docs.rs/tokio/0.2.23) and [hyper](docs.rs/hyper) for blazing fast concurrency.
+Written with [tokio](https://docs.rs/tokio/0.2.23) and [hyper](https://docs.rs/hyper) for blazing fast concurrency.
 
 ## Features
 
