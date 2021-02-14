@@ -1,11 +1,16 @@
 use hyper::body::HttpBody as _;
+use hyper::client::ResponseFuture;
 use hyper::http::uri::Scheme;
 use hyper::Client;
+use hyper::Response;
+use hyper::StatusCode;
+use hyper::Uri;
 use hyper_tls::HttpsConnector;
 use std::process::exit;
 use structopt::StructOpt;
 use tokio::fs::File;
-use tokio::prelude::*;
+use tokio::io::AsyncWriteExt;
+//use tokio::prelude::*;
 
 mod cli;
 use cli::Cli;
@@ -18,36 +23,52 @@ use config::{Config, Endpoint};
 
 pub type LResult<T> = Result<T, MockError>;
 
-async fn http_request(uri: &hyper::Uri) -> hyper::client::ResponseFuture {
+async fn http_request(uri: &Uri) -> ResponseFuture {
     let client = Client::new();
     client.get(uri.clone())
 }
 
-async fn https_request(uri: &hyper::Uri) -> hyper::client::ResponseFuture {
+async fn https_request(uri: &Uri) -> ResponseFuture {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
     client.get(uri.clone())
 }
 
-async fn make_request(endpoint: Endpoint) -> LResult<()> {
-    let uri = endpoint.get_uri()?;
-    let req = match uri.scheme() {
+async fn build_request(uri: &Uri) -> LResult<ResponseFuture> {
+    match uri.scheme() {
         Some(x) if x == &Scheme::HTTPS => Ok(https_request(&uri).await),
         Some(x) if x == &Scheme::HTTP => Ok(http_request(&uri).await),
         Some(_) => Err(MockError::UnknownScheme(uri.to_string())),
         None => Err(MockError::NoScheme(uri.to_string())),
-    };
-    let mut resp = req?.await.map_err(|_| MockError::UnableToGet)?;
-    if resp.status().is_success() || resp.status().is_redirection() {
-        let file_name = &endpoint.file;
-        let mut file = File::create(file_name)
+    }
+}
+
+fn is_successful(status: &StatusCode) -> bool {
+    status.is_success() || status.is_redirection()
+}
+
+async fn write_resp_to_file(
+    response: &mut Response<hyper::Body>,
+    endpoint: &Endpoint,
+) -> LResult<()> {
+    let file_name = &endpoint.file;
+    let mut file = File::create(file_name)
+        .await
+        .map_err(|_| MockError::UnableToCreateFile(file_name.to_path_buf()))?;
+    while let Some(chunk) = response.body_mut().data().await {
+        file.write_all(&chunk.map_err(|_| MockError::NoChunk)?)
             .await
-            .map_err(|_| MockError::UnableToCreateFile(file_name.to_path_buf()))?;
-        while let Some(chunk) = resp.body_mut().data().await {
-            file.write_all(&chunk.map_err(|_| MockError::NoChunk)?)
-                .await
-                .map_err(|_| MockError::UnableToWriteToFile(file_name.to_path_buf()))?;
-        }
+            .map_err(|_| MockError::UnableToWriteToFile(file_name.to_path_buf()))?;
+    }
+    Ok(())
+}
+
+async fn make_request(endpoint: Endpoint) -> LResult<()> {
+    let uri = endpoint.get_uri()?;
+    let req = build_request(&uri).await?;
+    let mut resp = req.await.map_err(|_| MockError::UnableToGet)?;
+    if is_successful(&resp.status()) {
+        write_resp_to_file(&mut resp, &endpoint).await?;
         Ok(())
     } else {
         Err(MockError::RequestFailed(
